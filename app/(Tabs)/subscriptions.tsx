@@ -4,6 +4,7 @@ import { styled } from "nativewind";
 import { useState } from "react";
 import SubscriptionCard from "@/components/SubscriptionCard";
 import { useSubscriptionStore } from "@/lib/subscriptionStore";
+import { posthog, posthogLog } from '../../src/config/posthog';
 
 const SafeAreaView = styled(RNSafeAreaView);
 
@@ -11,6 +12,18 @@ const Subscriptions = () => {
     const [searchQuery, setSearchQuery] = useState("");
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const { subscriptions } = useSubscriptionStore();
+
+    const handleSubscriptionPress = (id: string) => {
+        const isExpanding = expandedId !== id;
+        setExpandedId(isExpanding ? id : null);
+        posthog?.capture(isExpanding ? 'subscription_expanded' : 'subscription_collapsed', {
+            source: 'subscriptions_tab',
+        });
+        posthogLog.info(isExpanding ? 'subscription_expanded' : 'subscription_collapsed', {
+            event: isExpanding ? 'subscription_expanded' : 'subscription_collapsed',
+            source: 'subscriptions_tab',
+        });
+    };
 
     const filteredSubscriptions = subscriptions.filter((subscription) =>
         subscription.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -39,7 +52,7 @@ const Subscriptions = () => {
                     <SubscriptionCard
                         {...item}
                         expanded={expandedId === item.id}
-                        onPress={() => setExpandedId(expandedId === item.id ? null : item.id)}
+                        onPress={() => handleSubscriptionPress(item.id)}
                     />
                 )}
                 contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20, gap: 12 }}

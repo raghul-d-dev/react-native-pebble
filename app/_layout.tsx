@@ -1,11 +1,18 @@
-import {SplashScreen, Stack, usePathname, useGlobalSearchParams} from "expo-router";
+import {
+    ErrorBoundary as ExpoRouterErrorBoundary,
+    type ErrorBoundaryProps,
+    SplashScreen,
+    Stack,
+    usePathname,
+    useGlobalSearchParams,
+} from "expo-router";
 import '@/global.css';
 import {useFonts} from "expo-font";
 import {useEffect, useRef} from "react";
-import { ClerkProvider, useAuth } from '@clerk/expo';
+import { ClerkProvider, useAuth, useUser } from '@clerk/expo';
 import { tokenCache } from '@clerk/expo/token-cache';
 import { PostHogProvider } from 'posthog-react-native';
-import { posthog } from '../../src/config/posthog';
+import { posthog } from '../src/config/posthog';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -15,11 +22,48 @@ if (!publishableKey) {
     throw new Error('Add your Clerk Publishable Key to the .env file');
 }
 
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+    useEffect(() => {
+        posthog?.captureException(error);
+    }, [error]);
+
+    return <ExpoRouterErrorBoundary error={error} retry={retry} />;
+}
+
 function RootLayoutContent() {
     const { isLoaded: authLoaded } = useAuth();
+    const { user, isLoaded: userLoaded } = useUser();
     const pathname = usePathname();
     const params = useGlobalSearchParams();
     const previousPathname = useRef<string | undefined>(undefined);
+    const identifiedUserId = useRef<string | null>(null);
+
+    useEffect(() => {
+        if (!authLoaded || !userLoaded) {
+            return;
+        }
+
+        const nextUserId = user?.id ?? null;
+        if (identifiedUserId.current === nextUserId) {
+            return;
+        }
+
+        if (identifiedUserId.current) {
+            posthog?.reset();
+        }
+
+        if (nextUserId && user) {
+            const personProperties = {
+                ...(user.primaryEmailAddress?.emailAddress && { email: user.primaryEmailAddress.emailAddress }),
+                ...(user.firstName && { first_name: user.firstName }),
+                ...(user.lastName && { last_name: user.lastName }),
+            };
+
+            posthog?.identify(nextUserId, { $set: personProperties });
+        }
+
+        identifiedUserId.current = nextUserId;
+    }, [authLoaded, user, userLoaded]);
 
     useEffect(() => {
         if (previousPathname.current !== pathname) {

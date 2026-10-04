@@ -13,13 +13,12 @@ import SubscriptionCard from "@/components/SubscriptionCard";
 import CreateSubscriptionModal from "@/components/CreateSubscriptionModal";
 import {useState, useMemo} from "react";
 import { useUser } from '@clerk/expo';
-import { usePostHog } from 'posthog-react-native';
 import { useSubscriptionStore } from "@/lib/subscriptionStore";
+import { posthog, posthogLog } from '../../src/config/posthog';
 const SafeAreaView = styled(RNSafeAreaView);
 
 export default function App() {
     const { user } = useUser();
-    const posthog = usePostHog();
     const [expandedSubscriptionId, setExpandedSubscriptionId] = useState<string | null>(null);
     const [isModalVisible, setIsModalVisible] = useState(false);
     const { subscriptions, addSubscription } = useSubscriptionStore();
@@ -38,19 +37,23 @@ export default function App() {
     const handleSubscriptionPress = (item: Subscription) => {
         const isExpanding = expandedSubscriptionId !== item.id;
         setExpandedSubscriptionId((currentId) => (currentId === item.id ? null : item.id));
-        posthog.capture(isExpanding ? 'subscription_expanded' : 'subscription_collapsed', {
-            subscription_name: item.name,
-            subscription_id: item.id,
+        posthog?.capture(isExpanding ? 'subscription_expanded' : 'subscription_collapsed', {
+            source: 'home',
+        });
+        posthogLog.info(isExpanding ? 'subscription_expanded' : 'subscription_collapsed', {
+            event: isExpanding ? 'subscription_expanded' : 'subscription_collapsed',
+            source: 'home',
         });
     };
 
     const handleCreateSubscription = (newSubscription: Subscription) => {
         addSubscription(newSubscription);
-        posthog.capture('subscription_created', {
-            subscription_name: newSubscription.name,
-            subscription_price: newSubscription.price,
-            subscription_frequency: newSubscription.frequency,
-            subscription_category: newSubscription.category,
+        posthog?.capture('subscription_created', {
+            source: 'home',
+        });
+        posthogLog.info('subscription_created', {
+            event: 'subscription_created',
+            source: 'home',
         });
     };
 
